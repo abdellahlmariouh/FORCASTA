@@ -479,8 +479,10 @@ if st.session_state["user"] is None:
 # ═════════════════════════════════════════════════════════════════════════════
 # 2. VOLET LATÉRAL (SIDEBAR) & CONTRÔLES GLOBAUX
 # ═════════════════════════════════════════════════════════════════════════════
-user = st.session_state["user"]
-is_admin = user.get("role") == "admin"
+user = st.session_state.get("user")
+if not user:
+    st.stop()
+is_admin = bool(user.get("role") == "admin")
 
 with st.sidebar:
     # ─────────────────────────────────────────────────────────────────────────
