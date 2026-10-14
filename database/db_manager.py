@@ -155,12 +155,23 @@ def get_user_projects(user_id):
         return [dict(row) for row in cursor.fetchall()]
 
 
-def delete_project(project_id):
-    """Deletes a project and its metadata from the DB."""
+def delete_project(project_id: int):
+    """Deletes a project from the DB and all its associated disk artifacts."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM projects WHERE id = ?", (project_id,))
         conn.commit()
+
+    # Clean up associated files in data_storage/
+    if os.path.exists("data_storage"):
+        prefix = f"project_{project_id}"
+        for fname in os.listdir("data_storage"):
+            if fname.startswith(f"{prefix}_") or fname.startswith(f"{prefix}."):
+                try:
+                    os.remove(os.path.join("data_storage", fname))
+                except Exception:
+                    pass
+    return True
 
 
 def get_user_by_id(user_id: int):

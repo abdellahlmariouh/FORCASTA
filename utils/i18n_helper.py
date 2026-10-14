@@ -24,13 +24,21 @@ I18N = {
         "admin_console": "Console Administrateur",
         "back_to_project": "⬅️ Revenir au Projet",
 
-        # Projets
+        # Projets & Navigation
+        "nav_home": "Accueil",
+        "btn_delete_project": "Supprimer le projet",
+        "confirm_delete_project": "Confirmer la suppression",
+        "project_deleted": "Projet supprimé avec succès.",
+        "btn_open_project": "Ouvrir le projet",
+        "home_welcome": "Tableau de Bord & Accueil",
+        "home_welcome_subtitle": "Gérez vos projets d'analyse de séries temporelles et suivez vos prévisions.",
+        "home_my_projects": "Mes Projets d'Analyse",
         "projects_title": "PROJETS DE VENTES",
         "new_project": "Nouveau Projet",
         "project_name": "Nom du projet",
         "project_desc": "Description (optionnelle)",
         "btn_create_project": "Créer le projet",
-        "no_project_selected": "Veuillez sélectionner ou créer un projet dans le volet latéral pour accéder aux modules.",
+        "no_project_selected": "Veuillez sélectionner ou créer un projet pour accéder aux modules de prévision.",
 
         # Modules
         "m1_short": "1. Ingestion",
@@ -142,13 +150,21 @@ I18N = {
         "admin_console": "Admin Console",
         "back_to_project": "⬅️ Back to Project",
 
-        # Projects
+        # Projects & Navigation
+        "nav_home": "Home",
+        "btn_delete_project": "Delete Project",
+        "confirm_delete_project": "Confirm Deletion",
+        "project_deleted": "Project deleted successfully.",
+        "btn_open_project": "Open Project",
+        "home_welcome": "Dashboard & Home",
+        "home_welcome_subtitle": "Manage your time-series projects and track commercial forecasts.",
+        "home_my_projects": "My Sales Projects",
         "projects_title": "SALES PROJECTS",
         "new_project": "New Project",
         "project_name": "Project Name",
         "project_desc": "Description (optional)",
         "btn_create_project": "Create Project",
-        "no_project_selected": "Please select or create a project in the sidebar to access the modules.",
+        "no_project_selected": "Please select or create a project to access forecasting modules.",
 
         # Modules
         "m1_short": "1. Ingestion",
