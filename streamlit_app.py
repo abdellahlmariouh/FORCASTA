@@ -486,15 +486,29 @@ is_admin = bool(user.get("role") == "admin")
 
 with st.sidebar:
     # ─────────────────────────────────────────────────────────────────────────
-    # 1. LOGO ET NOM
+    # 1. LOGO ET NOM (CLIQUABLE VERS ACCUEIL) & BOUTON HOME
     # ─────────────────────────────────────────────────────────────────────────
-    c_logo, c_title = st.columns([1, 3])
+    c_logo, c_title = st.columns([1, 3.2])
     with c_logo:
         if os.path.exists("logo_forcasta_thumb.png"):
             st.image("logo_forcasta_thumb.png", width=42)
     with c_title:
-        st.markdown(f"<span style='font-size: 1.15rem; font-weight: 800; color: var(--mint-primary); letter-spacing:-0.3px;'>{t('app_name', lang)}</span>", unsafe_allow_html=True)
+        if st.button(f"📈 {t('app_name', lang)}", key="sb_btn_brand_logo", use_container_width=True, help="Accueil / Home"):
+            st.session_state["view_mode"] = "home"
+            st.rerun()
         st.caption("Sales Forecasting App")
+
+    # Bouton Accueil / Home Dédié
+    is_home = (st.session_state.get("view_mode") == "home")
+    if st.button(
+        f"🏠 {t('nav_home', lang)}",
+        key="btn_sidebar_home",
+        use_container_width=True,
+        type="primary" if is_home else "secondary",
+        help="Tableau de bord & Mes projets"
+    ):
+        st.session_state["view_mode"] = "home"
+        st.rerun()
 
     # Toggles compacts Thème & Langue
     c_th, c_ln = st.columns(2)
@@ -517,7 +531,12 @@ with st.sidebar:
     if is_admin:
         sidebar_choices.append("8. 🛡️ " + t("admin_console", lang))
 
-    current_radio_idx = st.session_state["module_index"] if st.session_state["view_mode"] == "modules" else 7
+    if st.session_state.get("view_mode") == "modules":
+        current_radio_idx = st.session_state.get("module_index", 0)
+    elif st.session_state.get("view_mode") == "admin":
+        current_radio_idx = len(sidebar_choices) - 1
+    else:
+        current_radio_idx = None
 
     selected_choice = st.radio(
         "Navigation :",
@@ -527,8 +546,8 @@ with st.sidebar:
         label_visibility="collapsed"
     )
 
-    if selected_choice != current_radio_idx:
-        if selected_choice == 7 and is_admin:
+    if selected_choice is not None and selected_choice != current_radio_idx:
+        if is_admin and selected_choice == len(sidebar_choices) - 1:
             st.session_state["view_mode"] = "admin"
         else:
             st.session_state["view_mode"] = "modules"
@@ -562,6 +581,21 @@ with st.sidebar:
             st.session_state["active_project_id"] = selected_id
             st.rerun()
 
+        # Suppression du projet sélectionné pour l'utilisateur
+        with st.expander("🗑️ " + t("btn_delete_project", lang), expanded=False):
+            st.caption(f"Supprimer définitivement le projet #{selected_id} ?" if lang == "fr" else f"Permanently delete project #{selected_id}?")
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                if st.button("❌ Non" if lang == "fr" else "❌ No", key=f"no_del_{selected_id}", use_container_width=True):
+                    st.rerun()
+            with col_d2:
+                if st.button("🗑️ Oui" if lang == "fr" else "🗑️ Yes", key=f"yes_del_{selected_id}", type="primary", use_container_width=True):
+                    delete_project(selected_id)
+                    st.session_state["active_project_id"] = None
+                    st.session_state["view_mode"] = "home"
+                    st.success(t("project_deleted", lang))
+                    st.rerun()
+
     with st.expander(f"➕ {t('new_project', lang)}", expanded=False):
         with st.form("new_project_form_sb", clear_on_submit=True):
             p_name = st.text_input(t("project_name", lang), placeholder="Ex: Ventes 2026")
@@ -589,16 +623,166 @@ with st.sidebar:
         logout()
 
 
+def render_home_dashboard():
+    """Renders the executive home dashboard and project management cockpit."""
+    user = st.session_state["user"]
+    lang = st.session_state.get("lang", "fr")
+    is_admin = bool(user.get("role") == "admin")
+    projects = get_user_projects(user["id"])
+    active_pid = st.session_state.get("active_project_id")
+
+    st.markdown(f"""
+    <div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 0.6rem;'>
+        <div>
+            <div class='brand-title' style='margin-bottom: 3px;'>🏠 {t('home_welcome', lang)}</div>
+            <p class='brand-subtitle'>{t('home_welcome_subtitle', lang)}</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 4 Métriques exécutives
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.metric(label="Mes Projets" if lang == "fr" else "My Projects", value=len(projects))
+    with k2:
+        active_display = "Aucun" if not active_pid else f"#{active_pid}"
+        if active_pid:
+            p_obj = get_project_by_id(active_pid)
+            if p_obj:
+                active_display = p_obj['name'][:18]
+        st.metric(label="Projet Actif" if lang == "fr" else "Active Project", value=active_display)
+    with k3:
+        if active_pid:
+            p_meta = read_project_meta(active_pid)
+            champ = p_meta.get("selected_model", p_meta.get("champion_model", "Auto"))
+        else:
+            champ = "N/A"
+        st.metric(label="Modèle Champion" if lang == "fr" else "Champion Model", value=champ)
+    with k4:
+        st.metric(label="Statut Plateforme" if lang == "fr" else "System Status", value="Opérationnel" if lang == "fr" else "Operational")
+
+    st.markdown("<hr style='margin: 1rem 0; border: none; border-top: 1px solid var(--border-subtle);'>", unsafe_allow_html=True)
+
+    # Section Mes Projets
+    st.markdown(f"### 📁 {t('home_my_projects', lang)}")
+
+    with st.expander(f"➕ {t('new_project', lang)}", expanded=len(projects) == 0):
+        with st.form("form_create_project_home", clear_on_submit=True):
+            c_np1, c_np2 = st.columns([1.5, 2])
+            with c_np1:
+                p_name_h = st.text_input(t("project_name", lang), placeholder="Ex: Ventes 2026")
+            with c_np2:
+                p_desc_h = st.text_input(t("project_desc", lang), placeholder="Objectifs et périmètre...")
+            btn_h_create = st.form_submit_button(t("btn_create_project", lang), type="primary", use_container_width=True)
+            if btn_h_create:
+                if p_name_h.strip():
+                    new_id = create_project(user["id"], p_name_h.strip(), p_desc_h.strip())
+                    st.session_state["active_project_id"] = new_id
+                    st.session_state["module_index"] = 0
+                    st.session_state["view_mode"] = "modules"
+                    st.success("Projet créé avec succès !" if lang == "fr" else "Project successfully created!")
+                    st.rerun()
+
+    if not projects:
+        st.info("Vous n'avez pas encore de projet enregistré. Cliquez sur 'Nouveau Projet' ci-dessus pour lancer votre première analyse." if lang == "fr" else "No projects saved yet. Click 'New Project' above to start your first forecast.")
+    else:
+        for p in projects:
+            pid = p["id"]
+            p_meta = read_project_meta(pid)
+            clean_path = get_project_file(pid, "clean")
+            features_path = get_project_file(pid, "features")
+            forecast_path = get_project_file(pid, "forecast")
+            
+            p_steps_done = [
+                os.path.exists(clean_path),
+                os.path.exists(features_path),
+                os.path.exists(clean_path),
+                p_meta.get("champion_model") is not None,
+                os.path.exists(forecast_path),
+                os.path.exists(forecast_path),
+                os.path.exists(forecast_path)
+            ]
+            pct = int((sum(p_steps_done) / 7) * 100)
+            is_current = (pid == active_pid)
+
+            border_style = "border: 1.5px solid var(--mint-primary);" if is_current else "border: 1px solid var(--border-subtle);"
+            
+            with st.container():
+                st.markdown(f"""
+                <div class='forcasta-card' style='{border_style} margin-bottom: 0.5rem; padding: 14px;'>
+                    <div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;'>
+                        <div>
+                            <span style='font-size: 1.15rem; font-weight: 700; color: var(--text-pure);'>{p['name']}</span>
+                            <span class='badge-pill-mint'>ID #{pid}</span>
+                            {"<span class='badge-champion'>PROJET ACTIF</span>" if is_current else ""}
+                            <div style='color: var(--text-secondary); font-size: 0.82rem; margin-top: 4px;'>
+                                {p['description'] if p['description'] else ('Créé le ' + str(p['created_at']))}
+                            </div>
+                        </div>
+                        <div style='text-align: right; min-width: 140px;'>
+                            <span style='font-size: 0.82rem; color: var(--mint-primary); font-weight: 700;'>Pipeline : {pct}% ({sum(p_steps_done)}/7)</span>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                col_c1, col_c2, col_c3 = st.columns([2, 1.2, 1.2])
+                with col_c1:
+                    st.progress(pct / 100.0)
+                with col_c2:
+                    if st.button(f"📂 {t('btn_open_project', lang)}", key=f"home_open_{pid}", use_container_width=True, type="primary" if is_current else "secondary"):
+                        st.session_state["active_project_id"] = pid
+                        st.session_state["view_mode"] = "modules"
+                        st.rerun()
+                with col_c3:
+                    with st.popover(f"🗑️ {t('btn_delete_project', lang)}", use_container_width=True):
+                        st.write(f"Supprimer définitivement **{p['name']}** ?" if lang == "fr" else f"Permanently delete **{p['name']}**?")
+                        if st.button(t("confirm_delete_project", lang), key=f"home_del_confirm_{pid}", type="primary", use_container_width=True):
+                            delete_project(pid)
+                            if st.session_state.get("active_project_id") == pid:
+                                st.session_state["active_project_id"] = None
+                            st.success(t("project_deleted", lang))
+                            st.rerun()
+
+    # Guide Méthodologique 7 Étapes
+    st.markdown("<hr style='margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-subtle);'>", unsafe_allow_html=True)
+    st.markdown("### 🗺️ " + ("Méthodologie du Pipeline FORCASTA" if lang == "fr" else "FORCASTA Pipeline Methodology"))
+    cols_m = st.columns(4)
+    modules_info = [
+        ("📥 1. Ingestion", "Upload CSV/Excel, parsing des dates et détection automatique des ventes."),
+        ("⚙️ 2. Features", "Extraction de variables temporelles, lags dynamiques et moyennes mobiles."),
+        ("📈 3. Historique", "Décomposition en tendance séculaire et visualisations de saisonnalité."),
+        ("🤖 4. Benchmark", "Tournoi AutoML (Prophet, ARIMA, XGBoost) et élection du Champion."),
+        ("🔮 5. Simulation", "What-If Analysis, scénarios commerciaux (+/- %) et bandes de confiance."),
+        ("💡 6. Conseils", "Recommandations stratégiques d'aide à la décision et stocks."),
+        ("📤 7. Exports", "Téléchargement instantané des rapports complets en CSV et Excel .xlsx.")
+    ]
+    for idx, (title, desc) in enumerate(modules_info):
+        c = cols_m[idx % 4]
+        with c:
+            st.markdown(f"""
+            <div class='forcasta-card' style='height: 140px; margin-bottom: 10px;'>
+                <div style='font-weight: 700; color: var(--mint-primary); margin-bottom: 6px;'>{title}</div>
+                <div style='font-size: 0.78rem; color: var(--text-secondary); line-height: 1.35;'>{desc}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 # 3. CONTRÔLE DU PROJET ACTIF
 # ═════════════════════════════════════════════════════════════════════════════
-if st.session_state["view_mode"] == "admin" and is_admin:
+if st.session_state.get("view_mode") == "admin" and is_admin:
     # Affichage de la console d'administration en fin de fichier
     pass
+elif st.session_state.get("view_mode") == "home":
+    render_home_dashboard()
 else:
     active_pid = st.session_state.get("active_project_id")
     if not active_pid:
         st.info(t("no_project_selected", lang))
+        if st.button(f"🏠 {t('nav_home', lang)}", type="primary", use_container_width=False):
+            st.session_state["view_mode"] = "home"
+            st.rerun()
         st.stop()
 
     active_project = get_project_by_id(active_pid)
@@ -1114,9 +1298,15 @@ if st.session_state.get("view_mode") == "admin" and is_admin:
     st.markdown(f"<div class='brand-title'>🛡️ {t('admin_console', lang)}</div>", unsafe_allow_html=True)
     st.markdown("<p class='brand-subtitle'>Supervision technique de la base SQLite et gestion des autorisations</p>" if lang == "fr" else "<p class='brand-subtitle'>Technical supervision of SQLite database and permissions management</p>", unsafe_allow_html=True)
 
-    if st.button(t("back_to_project", lang)):
-        st.session_state["view_mode"] = "modules"
-        st.rerun()
+    col_ab1, col_ab2 = st.columns([1, 1])
+    with col_ab1:
+        if st.button(f"🏠 {t('nav_home', lang)}", key="btn_admin_home", use_container_width=True):
+            st.session_state["view_mode"] = "home"
+            st.rerun()
+    with col_ab2:
+        if st.button(t("back_to_project", lang), key="btn_admin_back_proj", use_container_width=True):
+            st.session_state["view_mode"] = "modules"
+            st.rerun()
 
     tab_users, tab_db, tab_all_proj = st.tabs(["👥 Utilisateurs / Users", "🗄️ Maintenance Base SQLite", "📁 Projets / Projects"])
 
@@ -1207,9 +1397,32 @@ if st.session_state.get("view_mode") == "admin" and is_admin:
                     )
 
     with tab_all_proj:
-        st.subheader("Inventaire de Tous les Projets" if lang == "fr" else "All Projects Inventory")
+        st.subheader("Inventaire & Gestion des Projets" if lang == "fr" else "All Projects Inventory & Management")
         all_projs = get_all_projects_admin()
         if all_projs:
             st.dataframe(pd.DataFrame(all_projs), use_container_width=True)
+
+            st.markdown("<hr style='margin: 1.2rem 0; border: none; border-top: 1px solid var(--border-subtle);'>", unsafe_allow_html=True)
+            st.markdown("#### 🗑️ Suppression Administrative d'un Projet" if lang == "fr" else "#### 🗑️ Administrative Project Deletion")
+            st.caption("Permet à l'administrateur de purger n'importe quel projet et ses artefacts du disque." if lang == "fr" else "Allows admin to purge any project and disk artifacts across all users.")
+
+            admin_proj_opts = {p["id"]: f"#{p['id']} - {p['name']} (Propriétaire: {p['owner_username']})" for p in all_projs}
+            target_del_pid = st.selectbox(
+                "Sélectionner le projet à supprimer :" if lang == "fr" else "Select project to delete:",
+                options=list(admin_proj_opts.keys()),
+                format_func=lambda x: admin_proj_opts[x],
+                key="admin_del_proj_sel"
+            )
+
+            col_ad1, col_ad2 = st.columns([1.5, 2])
+            with col_ad1:
+                confirm_chk = st.checkbox("Confirmer la suppression irréversible" if lang == "fr" else "Confirm permanent deletion", key="chk_admin_del_confirm")
+            with col_ad2:
+                if st.button("🗑️ Supprimer ce projet (Admin)" if lang == "fr" else "🗑️ Delete Project (Admin)", type="primary", disabled=not confirm_chk, use_container_width=True):
+                    delete_project(target_del_pid)
+                    if st.session_state.get("active_project_id") == target_del_pid:
+                        st.session_state["active_project_id"] = None
+                    st.success(f"Projet #{target_del_pid} supprimé avec succès !" if lang == "fr" else f"Project #{target_del_pid} deleted successfully!")
+                    st.rerun()
         else:
-            st.info("Aucun projet enregistré.")
+            st.info("Aucun projet enregistré." if lang == "fr" else "No projects recorded.")
