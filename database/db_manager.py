@@ -1,9 +1,6 @@
 import sqlite3
 import os
-from passlib.context import CryptContext
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 DB_PATH = "database/sales_forecasting.db"
 
@@ -86,13 +83,22 @@ def init_db():
 
 
 def verify_password(plain_password, hashed_password):
-    # Truncate to 72 characters to prevent bcrypt ValueError
-    return pwd_context.verify(plain_password[:72], hashed_password)
+    """Verifies a plain-text password against a bcrypt hash."""
+    if not hashed_password or not plain_password:
+        return False
+    try:
+        pwd_bytes = str(plain_password).encode("utf-8")[:72]
+        hash_bytes = str(hashed_password).strip().encode("utf-8")
+        return bcrypt.checkpw(pwd_bytes, hash_bytes)
+    except Exception:
+        return False
 
 
 def get_password_hash(password):
-    # Truncate to 72 characters to prevent bcrypt ValueError
-    return pwd_context.hash(password[:72])
+    """Generates a bcrypt hash for a password (truncated to 72 bytes)."""
+    pwd_bytes = str(password).encode("utf-8")[:72]
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
 def create_user(username, password, role="user"):
