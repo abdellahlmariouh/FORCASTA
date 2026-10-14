@@ -13,6 +13,7 @@ import datetime
 import numpy as np
 import pandas as pd
 import streamlit as st
+import base64
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -42,6 +43,9 @@ from modules.feature_engineering import engineer_all_features
 from modules.models import evaluate_all_models, infer_freq
 from modules.simulation import refit_and_forecast
 from modules.recommendations import generate_recommendations
+import importlib
+import utils.i18n_helper
+importlib.reload(utils.i18n_helper)
 from utils.i18n_helper import t
 
 # Initialisation de la BDD et des répertoires
@@ -76,6 +80,26 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Gestion de la navigation via le logo cliquable
+if st.query_params.get("nav") == "home":
+    st.session_state["view_mode"] = "home"
+    try:
+        del st.query_params["nav"]
+    except Exception:
+        pass
+
+@st.cache_data
+def get_logo_b64():
+    """Charge le logo en base64 pour permettre un lien cliquable natif."""
+    for p in ["logo_forcasta_thumb.png", "logo_forcasta.jpg"]:
+        if os.path.exists(p):
+            try:
+                with open(p, "rb") as f:
+                    return base64.b64encode(f.read()).decode("utf-8")
+            except Exception:
+                pass
+    return ""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MOTEUR DE STYLES DYNAMIQUES (DARK GRAPHITE & LIGHT SLATE)
@@ -486,22 +510,26 @@ is_admin = bool(user.get("role") == "admin")
 
 with st.sidebar:
     # ─────────────────────────────────────────────────────────────────────────
-    # 1. LOGO ET NOM (CLIQUABLE VERS ACCUEIL) & BOUTON HOME
     # ─────────────────────────────────────────────────────────────────────────
-    c_logo, c_title = st.columns([1, 3.2])
-    with c_logo:
-        if os.path.exists("logo_forcasta_thumb.png"):
-            st.image("logo_forcasta_thumb.png", width=42)
-    with c_title:
-        if st.button(f"📈 {t('app_name', lang)}", key="sb_btn_brand_logo", use_container_width=True, help="Accueil / Home"):
-            st.session_state["view_mode"] = "home"
-            st.rerun()
-        st.caption("Sales Forecasting App")
+    # 1. LOGO UNIQUE RÉTRÉCI (CLIQUABLE VERS ACCUEIL)
+    # ─────────────────────────────────────────────────────────────────────────
+    logo_b64 = get_logo_b64()
+    if logo_b64:
+        st.markdown(f"""
+        <div style='text-align: center; margin-top: -0.6rem; margin-bottom: 0.35rem;'>
+            <a href='?nav=home' target='_self' title="Retour à l'accueil / Home" style='text-decoration: none; display: inline-block;'>
+                <img src='data:image/png;base64,{logo_b64}' style='width: 76px; max-width: 45%; border-radius: 9px; transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.22);' onmouseover="this.style.transform='scale(1.06)';" onmouseout="this.style.transform='scale(1)';" />
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+    elif os.path.exists("logo_forcasta_thumb.png"):
+        st.image("logo_forcasta_thumb.png", width=76)
 
     # Bouton Accueil / Home Dédié
     is_home = (st.session_state.get("view_mode") == "home")
+    lbl_home = "Accueil" if lang == "fr" else "Home"
     if st.button(
-        f"🏠 {t('nav_home', lang)}",
+        f"🏠 {lbl_home}",
         key="btn_sidebar_home",
         use_container_width=True,
         type="primary" if is_home else "secondary",
@@ -582,7 +610,8 @@ with st.sidebar:
             st.rerun()
 
         # Suppression du projet sélectionné pour l'utilisateur
-        with st.expander("🗑️ " + t("btn_delete_project", lang), expanded=False):
+        lbl_del = "Supprimer ce projet" if lang == "fr" else "Delete Project"
+        with st.expander(f"🗑️ {lbl_del}", expanded=False):
             st.caption(f"Supprimer définitivement le projet #{selected_id} ?" if lang == "fr" else f"Permanently delete project #{selected_id}?")
             col_d1, col_d2 = st.columns(2)
             with col_d1:
@@ -593,7 +622,7 @@ with st.sidebar:
                     delete_project(selected_id)
                     st.session_state["active_project_id"] = None
                     st.session_state["view_mode"] = "home"
-                    st.success(t("project_deleted", lang))
+                    st.success("Projet supprimé avec succès." if lang == "fr" else "Project deleted successfully.")
                     st.rerun()
 
     with st.expander(f"➕ {t('new_project', lang)}", expanded=False):
@@ -631,11 +660,13 @@ def render_home_dashboard():
     projects = get_user_projects(user["id"])
     active_pid = st.session_state.get("active_project_id")
 
+    lbl_welcome = "Tableau de Bord & Accueil" if lang == "fr" else "Dashboard & Home"
+    lbl_subtitle = "Gérez vos projets d'analyse de séries temporelles et suivez vos prévisions." if lang == "fr" else "Manage your time-series projects and track commercial forecasts."
     st.markdown(f"""
     <div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 0.6rem;'>
         <div>
-            <div class='brand-title' style='margin-bottom: 3px;'>🏠 {t('home_welcome', lang)}</div>
-            <p class='brand-subtitle'>{t('home_welcome_subtitle', lang)}</p>
+            <div class='brand-title' style='margin-bottom: 3px;'>🏠 {lbl_welcome}</div>
+            <p class='brand-subtitle'>{lbl_subtitle}</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -664,7 +695,8 @@ def render_home_dashboard():
     st.markdown("<hr style='margin: 1rem 0; border: none; border-top: 1px solid var(--border-subtle);'>", unsafe_allow_html=True)
 
     # Section Mes Projets
-    st.markdown(f"### 📁 {t('home_my_projects', lang)}")
+    lbl_my_projs = "Mes Projets d'Analyse" if lang == "fr" else "My Sales Projects"
+    st.markdown(f"### 📁 {lbl_my_projs}")
 
     with st.expander(f"➕ {t('new_project', lang)}", expanded=len(projects) == 0):
         with st.form("form_create_project_home", clear_on_submit=True):
@@ -730,18 +762,21 @@ def render_home_dashboard():
                 with col_c1:
                     st.progress(pct / 100.0)
                 with col_c2:
-                    if st.button(f"📂 {t('btn_open_project', lang)}", key=f"home_open_{pid}", use_container_width=True, type="primary" if is_current else "secondary"):
+                    lbl_open = "Ouvrir le projet" if lang == "fr" else "Open Project"
+                    if st.button(f"📂 {lbl_open}", key=f"home_open_{pid}", use_container_width=True, type="primary" if is_current else "secondary"):
                         st.session_state["active_project_id"] = pid
                         st.session_state["view_mode"] = "modules"
                         st.rerun()
                 with col_c3:
-                    with st.popover(f"🗑️ {t('btn_delete_project', lang)}", use_container_width=True):
+                    lbl_btn_del = "Supprimer" if lang == "fr" else "Delete"
+                    with st.popover(f"🗑️ {lbl_btn_del}", use_container_width=True):
                         st.write(f"Supprimer définitivement **{p['name']}** ?" if lang == "fr" else f"Permanently delete **{p['name']}**?")
-                        if st.button(t("confirm_delete_project", lang), key=f"home_del_confirm_{pid}", type="primary", use_container_width=True):
+                        lbl_conf_del = "Confirmer la suppression" if lang == "fr" else "Confirm Deletion"
+                        if st.button(lbl_conf_del, key=f"home_del_confirm_{pid}", type="primary", use_container_width=True):
                             delete_project(pid)
                             if st.session_state.get("active_project_id") == pid:
                                 st.session_state["active_project_id"] = None
-                            st.success(t("project_deleted", lang))
+                            st.success("Projet supprimé avec succès." if lang == "fr" else "Project deleted successfully.")
                             st.rerun()
 
     # Guide Méthodologique 7 Étapes
@@ -780,7 +815,8 @@ else:
     active_pid = st.session_state.get("active_project_id")
     if not active_pid:
         st.info(t("no_project_selected", lang))
-        if st.button(f"🏠 {t('nav_home', lang)}", type="primary", use_container_width=False):
+        lbl_h_back = "Accueil" if lang == "fr" else "Home"
+        if st.button(f"🏠 {lbl_h_back}", type="primary", use_container_width=False):
             st.session_state["view_mode"] = "home"
             st.rerun()
         st.stop()
@@ -1300,7 +1336,8 @@ if st.session_state.get("view_mode") == "admin" and is_admin:
 
     col_ab1, col_ab2 = st.columns([1, 1])
     with col_ab1:
-        if st.button(f"🏠 {t('nav_home', lang)}", key="btn_admin_home", use_container_width=True):
+        lbl_adm_home = "Accueil" if lang == "fr" else "Home"
+        if st.button(f"🏠 {lbl_adm_home}", key="btn_admin_home", use_container_width=True):
             st.session_state["view_mode"] = "home"
             st.rerun()
     with col_ab2:
